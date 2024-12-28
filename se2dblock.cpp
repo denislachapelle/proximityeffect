@@ -1,11 +1,12 @@
-//                                proximity2dblockb
+//                                se2dblock.cpp
+//                                inspired from proximity2dblockb
 //                                inspired from proximity2dblock
 //                                inspired from proximity2d
 //                                based on MFEM Example 22 prob 1 (case 0), ex5...
 //
-// Compile with: make proximity2dblockb, need MFEM version 4.7 and GLVIS-4.3.
+// Compile with: make se2dblock, need MFEM version 4.7 and GLVIS-4.3.
 //
-// Sample runs:  ./proximity2dblock -m ../mesh/ProxRoundRoundWires2d.msh
+// Sample runs:  ./se2dblock
 //
 /*
 Description:  
@@ -61,11 +62,13 @@ Then we can write the assembled matrix...
 Ir being total real current in wire 1.
 Ii being total imaginary current in wire 1.
 
+Once solved the current density can be computed...
 J = - i w s A - s V
 
-Jr =   w s Ai - s Vr
-Ji = - w s Ar - s Vi
+Jr =   w s Ai + s Vr
+Ji = - w s Ar + s Vi
 
+||J|| = sqrt(Jr^2+Ji^2)
 
 u: permeability.
 e: permitivity.
@@ -76,11 +79,9 @@ i: sqrt(-1)
 #include <mfem.hpp>
 #include <linalg/hypre.hpp>
 #include "mytools.hpp"
-//#include <fstream>
 #include <iostream>
 #include <math.h>
 #include <filesystem>
-//#include <stdlib.h>
 
 
 #define wire_1 1
@@ -101,7 +102,7 @@ class ProximityEffect
    real_t mu_ = 1.257E-6;
    real_t epsilon_ = 8.854E-12;
    real_t sigma_ = 58E6;
-   real_t omega_ = 0;
+   real_t omega_ = 2 * M_PI * 60;
 
    Mesh *mesh;
    int dim;
@@ -346,42 +347,6 @@ int ProximityEffect::CreateOperatorA3()
 
    std::ofstream out3("out/A3.txt");
    A3->Print(out3, 10);
-
-   /*
-   double CoeffArray[]={-mu_*sigma_, 0.0, 0.0, 0.0, 0.0};
-   Vector CoeffVector(CoeffArray, 5);
-   PWConstCoefficient K(CoeffVector);
-   
-   LinearForm LFA3(fespace);
-   LFA3.AddDomainIntegrator(new DomainLFIntegrator(K));
-   LFA3.Assemble();
-
-   A3 = new SparseMatrix(nbrdof, 1);
-   for(int k=0; k<nbrdof; k++)
-   {
-      A3->Set(k, 0, LFA3[k]);
-   }
-
-   A3->Finalize();
-*/
-
-/*
-   // for each element
-   //   if attr = wire 1 all dof = u s otherwise 0
-   A3 = new SparseMatrix(nbrdof, 1);
-   for(int el=0; el<nbrel; el++)
-   {
-      if(fespace->GetAttribute(el) == wire_1)
-      {
-         const FiniteElement* elem = fespace->GetFE(el);
-         Array<int> ElGlobalDofs(elem->GetDof());
-         fespace->GetElementDofs(el, ElGlobalDofs);
-         for(int k=0; k<ElGlobalDofs.Size(); k++)
-            A3->Set(ElGlobalDofs[k], 0, mu_ * sigma_);
-      }
-   }
-   
-   */
    
    cout << A3->Height() << " A3 Height()\n " 
         << A3->Width()  << " A3 Width()\n\n ";
@@ -623,7 +588,7 @@ int ProximityEffect::Solver()
    // Solve system Ax = b
    GMRESSolver solver1;
    solver1.SetOperator(*A_ptr);
-  // solver1.SetPreconditioner(*block_prec);
+ //solver1.SetPreconditioner(*block_prec);
    solver1.SetRelTol(1e-16);
    //   solver.SetAbsTol(1e-8);
    solver1.SetMaxIter(100000);
@@ -631,8 +596,7 @@ int ProximityEffect::Solver()
 
    //x = 0.0;       // Initial guess
    solver1.Mult(*B, *X);
-
-   
+  
 
    A->RecoverFEMSolution(*X, *rhs, *x);
    {
@@ -713,6 +677,19 @@ int ProximityEffect::DisplayResults()
         << (*x)[2*nbrdof+1] << " Vi\n"
         << sqrt(pow((*x)[2*nbrdof+0], 2)+pow((*x)[2*nbrdof+1], 2)) << " V\n";
    
+   ConstantCoefficient One(1.0);
+   real_t WireArea = IntegrateScalar(*fespace, One, wire_1);
+   real_t Rdc = 1.0/(WireArea * sigma_);
+   real_t Rac = (*x)[2*nbrdof+0] / Iw1r;
+   real_t RacdcRatio = Rac/Rdc;
+   real_t Lw = (*x)[2*nbrdof+1] / (Iw1r * omega_);
+
+
+   cout << Rdc << " Rdc\n"
+        << Rac << " Rac\n"
+        << RacdcRatio << " AC DC Ratio at " << omega_/2.0/M_PI << "Hz\n"
+        << 1E6*Lw << " L uH\n";
+   
 
 return 1;
 }
@@ -756,7 +733,7 @@ int main(int argc, char *argv[])
 
    PE.CreateBlockOperator();
 
-//   PE.CreatePreconditionner();
+   PE.CreatePreconditionner();
 
    PE.Solver();
 
@@ -764,7 +741,6 @@ int main(int argc, char *argv[])
 
    PE.DisplayResults();
 
-   cout << "return to end\n";
    
    return 0;
 }
