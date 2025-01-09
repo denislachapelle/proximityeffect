@@ -98,6 +98,7 @@ i: sqrt(-1)
 using namespace std;
 using namespace mfem;
 
+/*
 class WireInfo
 {
    public:
@@ -107,18 +108,20 @@ class WireInfo
    double center[2];
    double current[2];
 };
+*/
 
 class ProximityEffect
 {
+/*
    protected:
 // wires config 
    WireInfo *wiresInfo;
-   
+*/ 
 
    private:
    // 1. Parse command-line options.
    const char *configFile = "";
-   const char *meshFile = "";
+   const char *meshFile = "tworoundwires2d.msh";
    int order = 1;
    double freq = -1.0;
    int nbrwires = 2;
@@ -165,8 +168,10 @@ class ProximityEffect
       int CleanOutDir();
       //parse the options.
       int Parser(int argc, char *argv[]);
-      int ReadConfigFile();
-      int CreateMeshFile();
+
+//      int ReadConfigFile();
+//      int CreateMeshFile();
+
       int LoadMeshFile();
       int CreateFESpace();
       int CreateEssentialBoundary();
@@ -184,15 +189,16 @@ class ProximityEffect
       int Solver();
       int PostPrecessing();
       int DisplayResults();
-      bool IsCreatedMeshFile();
+//      bool IsCreatedMeshFile();
 };
 
+/*
 bool ProximityEffect::IsCreatedMeshFile()
 {
    if(meshFile == "") return true;
    else return false;
 }
-
+*/
 int ProximityEffect::Parser(int argc, char *argv[])
 {
 
@@ -230,6 +236,7 @@ int ProximityEffect::Parser(int argc, char *argv[])
    return 0;
 }
 
+/*
 int ProximityEffect::ReadConfigFile()
 {
    std::string s;
@@ -318,7 +325,7 @@ int ProximityEffect::ReadConfigFile()
    
    return 1;
 }
-
+*/
 /*
 int ProximityEffect::CreateMeshFile2()
 {
@@ -413,7 +420,7 @@ int ProximityEffect::CreateMeshFile2()
    return 1;
 }
 */
-
+/*
 int ProximityEffect::CreateMeshFile()
 {
    // Before using any functions in the C++ API, gmsh::must be initialized:
@@ -515,13 +522,14 @@ int ProximityEffect::CreateMeshFile()
 
    return 1;
 }
-
+*/
 int ProximityEffect::LoadMeshFile()
 {
 
    // 3. Read the mesh from the given mesh file.
-   if(IsCreatedMeshFile()) mesh = new Mesh("mesh.msh", 1, 1);
-   else mesh = new Mesh(meshFile, 1, 1);
+//   if(IsCreatedMeshFile()) mesh = new Mesh("mesh.msh", 1, 1);
+//   else 
+   mesh = new Mesh(meshFile, 1, 1);
    
    dim = mesh->Dimension();
 
@@ -798,8 +806,8 @@ int ProximityEffect::CreaterhsVector()
    *rhs = 0.0;
    for(int wc=0; wc < nbrwires; wc++)
    {
-      (*rhs)[2*nbrdof + 2*wc + 0] = wiresInfo[wc].current[0] * cos(2*M_PI*wiresInfo[wc].current[1]/360.0);
-      (*rhs)[2*nbrdof + 2*wc + 1] = wiresInfo[wc].current[0] * sin(2*M_PI*wiresInfo[wc].current[1]/360.0);;     
+      (*rhs)[2*nbrdof + 2*wc + 0] = 1.0; // wiresInfo[wc].current[0] * cos(2*M_PI*wiresInfo[wc].current[1]/360.0);
+      (*rhs)[2*nbrdof + 2*wc + 1] = 0.0; // wiresInfo[wc].current[0] * sin(2*M_PI*wiresInfo[wc].current[1]/360.0);;     
    }
 
    std::ofstream out("out/rhs.txt");
@@ -1094,10 +1102,10 @@ int main(int argc, char *argv[])
    
    PE.Parser(argc, argv);
 
-   PE.ReadConfigFile();
+//   PE.ReadConfigFile();
 
-   if(PE.IsCreatedMeshFile())
-      PE.CreateMeshFile();
+//   if(PE.IsCreatedMeshFile())
+//     PE.CreateMeshFile();
 
    PE.LoadMeshFile();
   
