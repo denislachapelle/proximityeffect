@@ -98,7 +98,7 @@ i: sqrt(-1)
 using namespace std;
 using namespace mfem;
 
-/*
+
 class WireInfo
 {
    public:
@@ -108,60 +108,59 @@ class WireInfo
    double center[2];
    double current[2];
 };
-*/
+
 
 class ProximityEffect
 {
-/*
+
    protected:
-// wires config 
-   WireInfo *wiresInfo;
-*/ 
+      WireInfo *wiresInfo;
+
 
    private:
-   // 1. Parse command-line options.
-   const char *configFile = "";
-   const char *meshFile = "tworoundwires2d.msh";
-   int order = 1;
-   double freq = -1.0;
-   int nbrwires = 2;
-         
-   real_t mu_ = 1.256637061E-6;
-   real_t epsilon_ = 8.8541878188e-12;
-   real_t sigma_ = 59.59E6; // at 20C.
-   real_t omega_ = 2.0*M_PI*60;
-   real_t domainRadius = -1.0;
+      // 1. Parse command-line options.
+      const char *configFile = "";
+      const char *meshFile = "tworoundwires2d.msh";
+      int order = 1;
+      double freq = -1.0;
+      int nbrwires = 2;
+            
+      real_t mu_ = 1.256637061E-6;
+      real_t epsilon_ = 8.8541878188e-12;
+      real_t sigma_ = 59.59E6; // at 20C.
+      real_t omega_ = 2.0*M_PI*60;
+      real_t domainRadius = -1.0;
 
-   Mesh *mesh;
-   int dim;
-   int nbrel;  //number of element.
+      Mesh *mesh;
+      int dim;
+      int nbrel;  //number of element.
 
-   FiniteElementCollection *fec;
-   FiniteElementSpace *fespace;
-   int nbrdof;   //number of degree of freedom.
+      FiniteElementCollection *fec;
+      FiniteElementSpace *fespace;
+      int nbrdof;   //number of degree of freedom.
 
-   Array<int> *ess_tdof_list_block; //essential dof list.
+      Array<int> *ess_tdof_list_block; //essential dof list.
 
-   //matrix pointer and matrix array pointer
-   //for holding the matrix forming the block operator.
-   SparseMatrix *A1, *A2, **A3, *A4, **A5, **A6, **A7;
-   Vector *rhs, *x;
+      //matrix pointer and matrix array pointer
+      //for holding the matrix forming the block operator.
+      SparseMatrix *A1, *A2, **A3, *A4, **A5, **A6, **A7;
+      Vector *rhs, *x;
 
-   BlockOperator *A;
-   Array<int> *blockOffset;
-   BlockOperator *ProxOp;
+      BlockOperator *A;
+      Array<int> *blockOffset;
+      BlockOperator *ProxOp;
 
-   Operator *A_ptr;
-   BlockVector *B, *X;
-   
-   BlockDiagonalPreconditioner *block_prec;
+      Operator *A_ptr;
+      BlockVector *B, *X;
+      
+      BlockDiagonalPreconditioner *block_prec;
 
-   GridFunction *AzrGF, *AziGF;  // magnetic vector potential z-axis, real and imaginary.
+      GridFunction *AzrGF, *AziGF;  // magnetic vector potential z-axis, real and imaginary.
 
-   //Space and gridfunction for the current density.
-   FiniteElementCollection *JFec;
-   FiniteElementSpace *JFESpace;
-   GridFunction *JrGF, *JiGF, *JGF;
+      //Space and gridfunction for the current density.
+      FiniteElementCollection *JFec;
+      FiniteElementSpace *JFESpace;
+      GridFunction *JrGF, *JiGF, *JGF;
 
    public:
       //delete all files in out dir.
@@ -169,8 +168,8 @@ class ProximityEffect
       //parse the options.
       int Parser(int argc, char *argv[]);
 
-//      int ReadConfigFile();
-//      int CreateMeshFile();
+      int ReadConfigFile();
+      int CreateMeshFile();
 
       int LoadMeshFile();
       int CreateFESpace();
@@ -236,7 +235,7 @@ int ProximityEffect::Parser(int argc, char *argv[])
    return 0;
 }
 
-/*
+
 int ProximityEffect::ReadConfigFile()
 {
    std::string s;
@@ -325,42 +324,52 @@ int ProximityEffect::ReadConfigFile()
    
    return 1;
 }
-*/
-/*
-int ProximityEffect::CreateMeshFile2()
+
+
+int ProximityEffect::CreateMeshFile()
 {
    // Before using any functions in the C++ API, gmsh::must be initialized:
    gmsh::initialize();
 
-   // We now add a new model, named "t1". If gmsh:::model::add() is not called, a
-   // new default (unnamed) model will be created on the fly, if necessary.
    gmsh::model::add("proxmesh");
    int wc;
-   int tag;
+   int *wtag;
+   wtag = new int[nbrwires];
+
    for(wc=0; wc<nbrwires; wc++)
    {
       if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
       {
-         gmsh::model::occ::addCircle(wiresInfo[wc].center[0], wiresInfo[wc].center[1], 0, wiresInfo[wc].dimensions[0], wc+100);
-         gmsh::model::occ::addCurveLoop({wc+100}, wc+100);
-         gmsh::model::occ::addPlaneSurface({wc+100}, wc+100);
+         int circleTag =gmsh::model::occ::addCircle(wiresInfo[wc].center[0], wiresInfo[wc].center[1], 0, wiresInfo[wc].dimensions[0], -1);
+         int curveLoopTag = gmsh::model::occ::addCurveLoop({circleTag}, -1);
+         wtag[wc] = gmsh::model::occ::addPlaneSurface({curveLoopTag}, -1);
       }
       else if(wiresInfo[wc].type==WireInfo::WireTypes::rectangular)
       {
-         tag = gmsh::model::occ::addRectangle(wiresInfo[wc].center[0] - wiresInfo[wc].dimensions[0]/2.0, wiresInfo[wc].center[1] - wiresInfo[wc].dimensions[1]/2.0, 0, wiresInfo[wc].dimensions[0], wiresInfo[wc].dimensions[1], wc+100, 0);
+         wtag[wc] = gmsh::model::occ::addRectangle(wiresInfo[wc].center[0] - wiresInfo[wc].dimensions[0]/2.0,
+                                              wiresInfo[wc].center[1] - wiresInfo[wc].dimensions[1]/2.0,
+                                              0,
+                                              wiresInfo[wc].dimensions[0],
+                                              wiresInfo[wc].dimensions[1],
+                                              -1,
+                                              0);
       }
 
    }
    gmsh::model::occ::synchronize();
 
    //domain limit
-   gmsh::model::occ::addCircle(0, 0, 0, domainRadius, 10);
-   gmsh::model::occ::addCurveLoop({10}, 10);
-   //int *array = new int[nbrwires+1];
-   std::vector<int> array(nbrwires+1);
-   array.at(0)=10;
+
+   int circleTag = gmsh::model::occ::addCircle(0, 0, 0, domainRadius, -1);
+
+   int curveLoopTag = gmsh::model::occ::addCurveLoop({circleTag}, -1);
+
+   std::vector<int> vec(nbrwires+1);
+   vec.at(0)=curveLoopTag;
    for(wc=0; wc<nbrwires; wc++ )
    {
+      vec.at(wc+1)=-(wtag[wc]);
+   /*
       if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
       {
          array.at(wc+1)=-(wc+100);
@@ -378,8 +387,11 @@ int ProximityEffect::CreateMeshFile2()
 
          array.at(wc+1)=-(curveLoopTags.at(0));
       }
+   */   
    }
-   gmsh::model::occ::addPlaneSurface(array, 10);
+
+   
+   int domainTag = gmsh::model::occ::addPlaneSurface(vec, -1);
 
    //
    //synchronize prior to add physical group.
@@ -392,11 +404,11 @@ int ProximityEffect::CreateMeshFile2()
    {
       char s[10];
       sprintf(s, "wire_%d",  wc+1);
-      gmsh::model::addPhysicalGroup(2, {wc+100}, wc+1, s);
+      gmsh::model::addPhysicalGroup(2, {wtag[wc]}, wc+1, s);
    }
 
-   gmsh::model::addPhysicalGroup(2, {10}, nbrwires+1 , "air");
-   gmsh::model::addPhysicalGroup(1, {10}, nbrwires+2, "aircontour");
+   gmsh::model::addPhysicalGroup(2, {domainTag}, nbrwires+1 , "air");
+   gmsh::model::addPhysicalGroup(1, {circleTag}, nbrwires+2, "aircontour");
 
    // We can then generate a 2D mesh...
  //  gmsh::option::setNumber("Mesh.Algorithm", 6);
@@ -419,9 +431,10 @@ int ProximityEffect::CreateMeshFile2()
 
    return 1;
 }
-*/
+
+
 /*
-int ProximityEffect::CreateMeshFile()
+int ProximityEffect::CreateMeshFile3()
 {
    // Before using any functions in the C++ API, gmsh::must be initialized:
    gmsh::initialize();
@@ -505,8 +518,8 @@ int ProximityEffect::CreateMeshFile()
    gmsh::option::setNumber("Mesh.Algorithm", 6);
 
    gmsh::model::mesh::generate(2);
-//   gmsh::model::mesh::refine();
-// gmsh::model::mesh::refine();
+   gmsh::model::mesh::refine();
+   gmsh::model::mesh::refine();
 
    // glvis can read mesh version 2.2
    gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
@@ -523,6 +536,8 @@ int ProximityEffect::CreateMeshFile()
    return 1;
 }
 */
+
+
 int ProximityEffect::LoadMeshFile()
 {
 
@@ -806,8 +821,8 @@ int ProximityEffect::CreaterhsVector()
    *rhs = 0.0;
    for(int wc=0; wc < nbrwires; wc++)
    {
-      (*rhs)[2*nbrdof + 2*wc + 0] = 1.0; // wiresInfo[wc].current[0] * cos(2*M_PI*wiresInfo[wc].current[1]/360.0);
-      (*rhs)[2*nbrdof + 2*wc + 1] = 0.0; // wiresInfo[wc].current[0] * sin(2*M_PI*wiresInfo[wc].current[1]/360.0);;     
+      (*rhs)[2*nbrdof + 2*wc + 0] = wiresInfo[wc].current[0] * cos(2*M_PI*wiresInfo[wc].current[1]/360.0);
+      (*rhs)[2*nbrdof + 2*wc + 1] = wiresInfo[wc].current[0] * sin(2*M_PI*wiresInfo[wc].current[1]/360.0);;     
    }
 
    std::ofstream out("out/rhs.txt");
@@ -1102,10 +1117,10 @@ int main(int argc, char *argv[])
    
    PE.Parser(argc, argv);
 
-//   PE.ReadConfigFile();
+   PE.ReadConfigFile();
 
 //   if(PE.IsCreatedMeshFile())
-//     PE.CreateMeshFile();
+     PE.CreateMeshFile();
 
    PE.LoadMeshFile();
   
