@@ -18,7 +18,7 @@ double IntScalar4(FiniteElementSpace &fes, Coefficient &coeff, int Attr);
 /// Function calculating the integral of a scalar Coefficient, Coeff, over a domain
 /// identified by an Attribute, Attr, on the FiniteElementSpace fes.
 double IntegrateScalar(FiniteElementSpace &fes, Coefficient &coeff, int Attr);
-void Glvis(Mesh *m, GridFunction *gf, string title, int precision = 8, string keys=" keys 'mmc'");
+void Glvis(Mesh *m, GridFunction *gf, string title, int precision = 8, string keys=" keys 'mmcj'");
 int GetScalarValues(Array<double> &ap,  GridFunction &gf, Array<double> &av, int vdim);
 
 #endif // MYTOOLS_HPP

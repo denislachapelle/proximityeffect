@@ -74,6 +74,8 @@ std::string findWordN(const std::string& filename, const std::string& targetWord
 
     while (std::getline(file, line))
     {
+       iss.str(line);
+       iss.clear();
         // Read the first and second words from the line
         if(N==2)
         {
@@ -104,32 +106,18 @@ std::string findWordN(const std::string& filename, const std::string& targetWord
 
 int HowManyWire(const std::string& filename)
 {
-   int nbrWire = 0;
-   std::ifstream file(filename);
-   std::string line;
-   std::string firstWord;
-
-   if (!file.is_open()) {
-      std::cerr << "Unable to open file\n";
-      return 0;
-   }
-  
-   while (std::getline(file, line))
+   int nbrWire = -1;
+   string wirexshape;
+   bool loop = true;
+   while(loop)    
    {
-      std::istringstream iss(line);
-      if (iss >> firstWord)
-      {
-         if (firstWord.substr(0, 4) == "wire")
-         {
-            if (firstWord.substr(5, 3) == "rad")
-            {
-               nbrWire++;
-            }
-         }   
-      }
-    }
-    file.close();
-    return nbrWire;
+      nbrWire++;
+      char buffer[100];
+      snprintf(buffer, sizeof(buffer), "wire%dshape", nbrWire+1);
+      wirexshape = buffer;
+      if(findWordN(filename, wirexshape, 2) == "") loop = false;
+   }
+   return nbrWire;
 }
 
 double IntScalar3(FiniteElementSpace &fes, Coefficient &coeff, int Attr)
