@@ -98,7 +98,6 @@ i: sqrt(-1)
 using namespace std;
 using namespace mfem;
 
-
 class WireInfo
 {
    public:
@@ -109,30 +108,28 @@ class WireInfo
    double current[2];
 };
 
-
 class ProximityEffect
 {
 
    protected:
       WireInfo *wiresInfo;
 
-
    private:
       // 1. Parse command-line options.
-      const char *configFile = "";
+      const char *configFile = "wiresconfig.txt";
       const char *meshFile = "tworoundwires2d.msh";
       int order = 1;
       double freq = -1.0;
       int nbrwires = 2;
             
-      real_t mu_ = 1.256637061E-6;
-      real_t epsilon_ = 8.8541878188e-12;
-      real_t sigma_ = 59.59E6; // at 20C.
-      real_t omega_ = 2.0*M_PI*60;
+      real_t mu_ = 1.256637061E-6;        //permeability, air and copper.
+      real_t epsilon_ = 8.8541878188e-12; //permittivity air and copper
+      real_t sigma_ = 59.59E6;            //copper conductivity at 20C.
+      real_t omega_ = 2.0*M_PI*60;        //by default 60Hz.
       real_t domainRadius = -1.0;
-
+      int refineTimes = 0;
       Mesh *mesh;
-      int dim;
+      int dim; 
       int nbrel;  //number of element.
 
       FiniteElementCollection *fec;
@@ -153,6 +150,7 @@ class ProximityEffect
       Operator *A_ptr;
       BlockVector *B, *X;
       
+      GSSmoother **gs;
       BlockDiagonalPreconditioner *block_prec;
 
       GridFunction *AzrGF, *AziGF;  // magnetic vector potential z-axis, real and imaginary.
@@ -208,6 +206,8 @@ int ProximityEffect::Parser(int argc, char *argv[])
                   "file to use as wires config file.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&refineTimes, "-rft", "--refinetimes",
+                  "Number of times gmsh refine.");
    args.AddOption(&mu_, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon_, "-eps", "--permittivity",
@@ -369,27 +369,7 @@ int ProximityEffect::CreateMeshFile()
    for(wc=0; wc<nbrwires; wc++ )
    {
       vec.at(wc+1)=-(wtag[wc]);
-   /*
-      if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
-      {
-         array.at(wc+1)=-(wc+100);
-      }
-      else if(wiresInfo[wc].type==WireInfo::WireTypes::rectangular)
-      {
-         // std::vector<std::pair<int, int>> outDimTag;
-         // Get the boundary of the surface (dimension 2 -> 1, surface to edges)
-         // gmsh::model::getBoundary({{2, wc+100}}, outDimTag, true, true, false);
-         std::vector<int> curveLoopTags;
-         std::vector<std::vector<int> > curveTags;
-         gmsh::model::occ::getCurveLoops(wc+100,
-                                  curveLoopTags,
-                                  curveTags);
-
-         array.at(wc+1)=-(curveLoopTags.at(0));
-      }
-   */   
    }
-
    
    int domainTag = gmsh::model::occ::addPlaneSurface(vec, -1);
 
@@ -414,9 +394,11 @@ int ProximityEffect::CreateMeshFile()
  //  gmsh::option::setNumber("Mesh.Algorithm", 6);
 
    gmsh::model::mesh::generate(2);
-   gmsh::model::mesh::refine();
-   gmsh::model::mesh::refine();
-
+   for(int i = 0; i < refineTimes; i++)
+   {
+      gmsh::model::mesh::refine();
+   }
+   
    // glvis can read mesh version 2.2
    gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
 
@@ -431,112 +413,6 @@ int ProximityEffect::CreateMeshFile()
 
    return 1;
 }
-
-
-/*
-int ProximityEffect::CreateMeshFile3()
-{
-   // Before using any functions in the C++ API, gmsh::must be initialized:
-   gmsh::initialize();
-
-   gmsh::model::add("proxmesh");
-   int wc;
-   
-   //assemble the domain entities.
-   gmsh::model::occ::addDisk(0, 0, 0, domainRadius, domainRadius, 10);
-   
-   // prepare the cutting tools which are the wires.
-
-   for(wc=0; wc<nbrwires; wc++)
-   {
-      if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
-      {
-         gmsh::model::occ::addDisk(wiresInfo[wc].center[0], wiresInfo[wc].center[1], 0, wiresInfo[wc].dimensions[0], wiresInfo[wc].dimensions[0], wc+100);
-      }
-      else if(wiresInfo[wc].type==WireInfo::WireTypes::rectangular)
-      {
-         gmsh::model::occ::addRectangle(wiresInfo[wc].center[0] - wiresInfo[wc].dimensions[0]/2.0, wiresInfo[wc].center[1] - wiresInfo[wc].dimensions[1]/2.0, 0, wiresInfo[wc].dimensions[0], wiresInfo[wc].dimensions[1], wc+100, 0);
-      }
-   }
-
-   gmsh::model::occ::synchronize();  
-
-   std::vector<std::pair<int, int>> cuttingSurface;
-   for(wc=0; wc<nbrwires; wc++ )
-   {
-      cuttingSurface.emplace_back(2, wc+100);
-   }
-      
-   std::vector<std::pair<int, int>> outSurfaces;
-   std::vector<gmsh::vectorpair> outDimTagsMap;
-   gmsh::model::occ::cut({{2, 10}}, cuttingSurface, outSurfaces, outDimTagsMap);
-   gmsh::model::occ::synchronize();
-
-// assemble the wires entities.
-
-   for(wc=0; wc<nbrwires; wc++)
-   {
-      if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
-      {
-         gmsh::model::occ::addDisk(wiresInfo[wc].center[0], wiresInfo[wc].center[1], 0, wiresInfo[wc].dimensions[0], wiresInfo[wc].dimensions[0], wc+200);
-      }
-      else if(wiresInfo[wc].type==WireInfo::WireTypes::rectangular)
-      {
-         gmsh::model::occ::addRectangle(wiresInfo[wc].center[0] - wiresInfo[wc].dimensions[0]/2.0, wiresInfo[wc].center[1] - wiresInfo[wc].dimensions[1]/2.0, 0, wiresInfo[wc].dimensions[0], wiresInfo[wc].dimensions[1], wc+200, 0);
-      }
-   }
-
-   //
-   //synchronize prior to add physical group.
-   //
-   gmsh::model::occ::synchronize();
-   //
-   //add physical groups.
-   //
-   for(wc=0; wc<nbrwires; wc++)
-   {
-      char s[10];
-      sprintf(s, "wire_%d",  wc+1);
-      gmsh::model::addPhysicalGroup(2, {wc+200}, wc+1, s);
-   }
-
-
-   gmsh::model::addPhysicalGroup(2, {outSurfaces[0].second}, nbrwires+1 , "air");
-   gmsh::model::addPhysicalGroup(1, {nbrwires+2}, nbrwires+2, "aircontour");
-
-// Get all entities
-    std::vector<std::pair<int, int>> entities2;
-    gmsh::model::getEntities(entities2, -1);
-
-    // Print all entities
-    std::cout << "Entities in the model:\n";
-    for (const auto &entity : entities2) {
-        std::cout << "Dimension: " << entity.first << ", Tag: " << entity.second << "\n";
-    }
-
-   // We can then generate a 2D mesh...
-   gmsh::option::setNumber("Mesh.Algorithm", 6);
-
-   gmsh::model::mesh::generate(2);
-   gmsh::model::mesh::refine();
-   gmsh::model::mesh::refine();
-
-   // glvis can read mesh version 2.2
-   gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
-
-   // ... and save it to disk
-   gmsh::write("mesh.msh");
-
-   // start gmsh
-   gmsh::fltk::run();
-
-   //before leaving.
-   gmsh::finalize();
-
-   return 1;
-}
-*/
-
 
 int ProximityEffect::LoadMeshFile()
 {
@@ -547,6 +423,7 @@ int ProximityEffect::LoadMeshFile()
    mesh = new Mesh(meshFile, 1, 1);
    
    dim = mesh->Dimension();
+   assert(dim==2); //this software works only for dimension 2.
 
    cout << mesh->bdr_attributes.Max() << " bdr attr max\n"
         << mesh->Dimension() << " dimensions\n"
@@ -573,7 +450,6 @@ return 1;
 
 int ProximityEffect::CreateEssentialBoundary()
 {
-
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    // real and imag are the same because they refer to mesh nodes.
    Array<int> ess_tdof_list;
@@ -655,7 +531,9 @@ int ProximityEffect::CreateOperatorA2()
 
 int ProximityEffect::CreateOperatorA3()
 {  
+   // point to an array of sparse matrix.
    A3 = new SparseMatrix*[nbrwires];
+   // used to assemble filename.
    stringstream ss;
    char fn[256];
    
@@ -670,7 +548,6 @@ int ProximityEffect::CreateOperatorA3()
       BLFA3.AddDomainIntegrator(new MassIntegrator(K));
       BLFA3.Assemble();
       BLFA3.Finalize();
-
       
       sprintf(fn,"out/BLFA3_%d.txt", wc);
       std::ofstream out4(fn);
@@ -720,7 +597,7 @@ int ProximityEffect::CreateOperatorA4()
 
 int ProximityEffect::CreateOperatorA5()
 {
-   /*
+/*
 This section of code compute the operator performing the 
 integration.
 
@@ -773,7 +650,6 @@ int ProximityEffect::CreateOperatorA6()
    char fn[256];
    for(int wc = 0; wc < nbrwires; wc++)
    {
-    
       ConstantCoefficient One(1.0);
       real_t wireArea = IntegrateScalar(*fespace, One, wc+1);
       A6[wc] = new SparseMatrix(1, 1);
@@ -785,7 +661,7 @@ int ProximityEffect::CreateOperatorA6()
       A6[wc]->Print(out, 10);
 
       cout << A6[wc]->Height() << " A6 Height()\n " 
-         << A6[wc]->Width()  << " A6 Width()\n\n ";
+           << A6[wc]->Width()  << " A6 Width()\n\n ";
    }
    return 1;
 }
@@ -859,19 +735,12 @@ int ProximityEffect::CreateBlockOperator()
       blockOffset->Print(out, 10);
    }
   
-   // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
-   //    side.  Define the GridFunction u,p for the finite element solution and
-   //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (u,p) and the linear forms (fform, gform).
-  
-  Device device("cpu");
-  MemoryType mt = device.GetMemoryType();
+   Device device("cpu");
+   MemoryType mt = device.GetMemoryType();
 
    ProxOp = new BlockOperator(*blockOffset);
-
    
-// Build the operator
+// Build the operator, insert each block.
 // row 0 ...
       ProxOp->SetBlock(0, 0, A1);
       ProxOp->SetBlock(0, 1, A2);
@@ -948,23 +817,24 @@ int ProximityEffect::CreatePreconditionner()
    // ************************************
 
    // Create smoothers for diagonal blocks
+   gs = new GSSmoother*[2+2*nbrwires];
    int wc;
-   GSSmoother gs1(*A1); // Gauss-Seidel smoother for A11
-   GSSmoother gs2(*A1); // Gauss-Seidel smoother for A22
-   GSSmoother* gs[20];
+   gs[0] = new GSSmoother(*A1); // Gauss-Seidel smoother for A11
+   gs[1] = new GSSmoother(*A1); // Gauss-Seidel smoother for A22
+
    for(wc=0;wc<nbrwires; wc++)
    {
-      gs[2*wc+0] = new GSSmoother(*A6[wc]);
-      gs[2*wc+1] = new GSSmoother(*A6[wc]);
+      gs[2*wc+2] = new GSSmoother(*(A6[wc]));
+      gs[2*wc+3] = new GSSmoother(*(A6[wc]));
    }
 
    block_prec = new BlockDiagonalPreconditioner(*blockOffset);
-   block_prec->SetDiagonalBlock(0, &gs1); // Set smoother for A11
-   block_prec->SetDiagonalBlock(1, &gs2); // Set smoother for A22
+   block_prec->SetDiagonalBlock(0, gs[0]); // Set smoother for A11
+   block_prec->SetDiagonalBlock(1, gs[1]); // Set smoother for A22
    for(wc=0;wc<nbrwires; wc++)
    {
-      block_prec->SetDiagonalBlock(2+2*wc+0, gs[wc]);
-      block_prec->SetDiagonalBlock(2+2*wc+1, gs[wc]);
+      block_prec->SetDiagonalBlock(2+2*wc+0, gs[2*wc+2]);
+      block_prec->SetDiagonalBlock(2+2*wc+1, gs[2*wc+3]);
    }
    return 1;
 }
@@ -972,27 +842,23 @@ int ProximityEffect::CreatePreconditionner()
 int ProximityEffect::Solver()
 {
    // Solve system Ax = b
-   GMRESSolver solver1;
-   solver1.SetOperator(*A_ptr);
-   //solver1.SetPreconditioner(*block_prec);
-   solver1.SetRelTol(1e-16);
+   GMRESSolver solver;
+   solver.SetOperator(*A_ptr);
+  // solver.SetPreconditioner(*block_prec);
+   solver.SetRelTol(1e-16);
    //   solver.SetAbsTol(1e-8);
-   solver1.SetMaxIter(5000);
-   solver1.SetPrintLevel(1);
+   solver.SetMaxIter(5000);
+   solver.SetPrintLevel(1);
 
    //x = 0.0;       // Initial guess
-   solver1.Mult(*B, *X);
-
-   
+   solver.Mult(*B, *X);
 
    A->RecoverFEMSolution(*X, *rhs, *x);
    {
       std::ofstream out("out/xsol.txt");
       x->Print(out, 10);
    }
-
    return 1;
-   
 }
 
 
@@ -1004,8 +870,6 @@ int ProximityEffect::PostPrecessing()
    // rebuild GFR and GFI from x.
    AzrGF->MakeRef(fespace, *x, 0);
    AziGF->MakeRef(fespace, *x, nbrdof);
-
-   return 1;
 
    GridFunctionCoefficient AzrGFCoeff(AzrGF);
    GridFunctionCoefficient AziGFCoeff(AziGF);
@@ -1071,8 +935,6 @@ int ProximityEffect::DisplayResults()
    Glvis(mesh, AzrGF, "A-Real" );
    Glvis(mesh, AziGF, "A-Imag" );
 
-   return 1;
-
    Glvis(mesh, JrGF, "J-Real" );
    Glvis(mesh, JiGF, "J-Imag" );
    Glvis(mesh, JGF, "J" );
@@ -1105,7 +967,6 @@ int ProximityEffect::CleanOutDir()
     system("rm -f out/*");
     return 1;
 }
-
 
 
 int main(int argc, char *argv[])
