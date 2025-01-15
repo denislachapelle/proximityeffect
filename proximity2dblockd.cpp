@@ -1,9 +1,9 @@
-//                                proximity2dblockc
+//                                proximity2dblockd
 //                                inspired from proximity2dblock and se2dblock
 //                                inspired from proximity2d
 //                                based on MFEM Example 22 prob 1 (case 0), ex5...
 //
-// Compile with: make proximity2dblockc, need MFEM version 4.7 and GLVIS-4.3.
+// Compile with: make proximity2dblockd, need MFEM version 4.7 and GLVIS-4.3 and gmsh.
 //
 // Sample runs:  ./proximity2dblockd
 //
@@ -89,7 +89,7 @@ i: sqrt(-1)
 #include <iostream>
 #include <math.h>
 #include <filesystem>
-#include "/usr/local/include/gmsh.h"
+#include "gmsh.h"
 
 //Value expected from mesh file.
 #define AIR        (nbrwires+1)
@@ -121,6 +121,7 @@ class ProximityEffect
       int order = 1;
       double freq = -1.0;
       int nbrwires = 2;
+      bool printMatrix = false;
             
       real_t mu_ = 1.256637061E-6;        //permeability, air and copper.
       real_t epsilon_ = 8.8541878188e-12; //permittivity air and copper
@@ -146,6 +147,7 @@ class ProximityEffect
       BlockOperator *A;
       Array<int> *blockOffset;
       BlockOperator *ProxOp;
+      
 
       Operator *A_ptr;
       BlockVector *B, *X;
@@ -216,6 +218,9 @@ int ProximityEffect::Parser(int argc, char *argv[])
                   "Conductivity (or damping constant).");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency (in Hz).");
+   args.AddOption(&printMatrix, "-prm", "--printmatrix", "-dnprm", "--donotprintmatrix",
+                  "Print of not the matrix.");
+                  
                 
    args.Parse();
 
@@ -493,7 +498,7 @@ int ProximityEffect::CreateOperatorA1()
    A1 = new SparseMatrix(BLFA1.SpMat());
 
    std::ofstream out("out/A1.txt");
-   A1->Print(out, 10);
+   if(printMatrix) A1->Print(out, 10);
   
    cout << A1->Height() << " A1 Height()\n " 
         << A1->Width()  << " A1 Width()\n\n ";
@@ -521,7 +526,7 @@ int ProximityEffect::CreateOperatorA2()
    A2 = new SparseMatrix(BLFA2.SpMat());
 
    std::ofstream out("out/A2.txt");
-   A2->Print(out, 10);
+   if(printMatrix) A2->Print(out, 10);
   
    cout << A2->Height() << " A2 Height()\n " 
         << A2->Width()  << " A2 Width()\n\n ";
@@ -551,7 +556,7 @@ int ProximityEffect::CreateOperatorA3()
       
       sprintf(fn,"out/BLFA3_%d.txt", wc);
       std::ofstream out4(fn);
-      BLFA3.SpMat().Print(out4, 10);
+      if(printMatrix) BLFA3.SpMat().Print(out4, 10);
       
       SparseMatrix TempSM(BLFA3.SpMat());
       TempSM.Finalize();
@@ -571,7 +576,7 @@ int ProximityEffect::CreateOperatorA3()
 
       sprintf(fn,"out/A3_%d.txt", wc );
       std::ofstream out3(fn);
-      A3[wc]->Print(out3, 10);
+      if(printMatrix) A3[wc]->Print(out3, 10);
       
       cout << A3[wc]->Height() << " A3 Height()\n " 
          << A3[wc]->Width()  << " A3 Width()\n\n ";
@@ -587,7 +592,7 @@ int ProximityEffect::CreateOperatorA4()
    A4->Finalize();
       
    std::ofstream out("out/A4.txt");
-   A4->Print(out, 10);
+   if(printMatrix) A4->Print(out, 10);
 
    cout << A4->Height() << " A4 Height()\n " 
         << A4->Width()  << " A4 Width()\n\n ";
@@ -621,7 +626,7 @@ Note s, the conductivity, is a PWCoefficient
       
       sprintf(fn,"out/LFA5_%d.txt", wc );
       std::ofstream out1(fn);
-      LFA5.Print(out1, 10);
+      if(printMatrix) LFA5.Print(out1, 10);
 
       A5[wc] = new SparseMatrix(1, nbrdof);
       for(int k=0; k<nbrdof; k++)
@@ -633,7 +638,7 @@ Note s, the conductivity, is a PWCoefficient
 
       sprintf(fn,"out/A5_%d.txt", wc );
       std::ofstream out2(fn);
-      A5[wc]->Print(out2, 10);
+      if(printMatrix) A5[wc]->Print(out2, 10);
 
       cout << A5[wc]->Height() << " A5 Height()\n " 
          << A5[wc]->Width()  << " A5 Width()\n\n ";
@@ -658,7 +663,7 @@ int ProximityEffect::CreateOperatorA6()
 
       sprintf(fn,"out/A6_%d.txt", wc );
       std::ofstream out(fn);
-      A6[wc]->Print(out, 10);
+      if(printMatrix) A6[wc]->Print(out, 10);
 
       cout << A6[wc]->Height() << " A6 Height()\n " 
            << A6[wc]->Width()  << " A6 Width()\n\n ";
@@ -681,7 +686,7 @@ int ProximityEffect::CreateOperatorA7()
 
       sprintf(fn,"out/A7_%d.txt", wc );        
       std::ofstream out(ss.str());
-      A7[wc]->Print(out, 10);
+      if(printMatrix) A7[wc]->Print(out, 10);
 
       cout << A7[wc]->Height() << " A7 Height()\n " 
          << A7[wc]->Width()  << " A7 Width()\n\n ";
@@ -702,7 +707,7 @@ int ProximityEffect::CreaterhsVector()
    }
 
    std::ofstream out("out/rhs.txt");
-   rhs->Print(out, 10);
+   if(printMatrix) rhs->Print(out, 10);
 
    cout << rhs->Size() << " rhs size\n\n ";
    return 1;
@@ -714,7 +719,7 @@ int ProximityEffect::CreatexVector()
    x = new Vector(2*nbrdof+2*nbrwires);
    *x = 0.0; 
    std::ofstream out("out/x.txt");
-   x->Print(out, 10);
+   if(printMatrix) x->Print(out, 10);
    cout << x->Size() << " x size\n\n ";
    return 1;
 }
@@ -762,7 +767,7 @@ int ProximityEffect::CreateBlockOperator()
 
       {
       std::ofstream out("out/ProxOp.txt");
-      ProxOp->PrintMatlab(out);
+      if(printMatrix) ProxOp->PrintMatlab(out);
       }
 
       assert(ProxOp->Height() == 2*nbrdof+2*nbrwires);
@@ -785,17 +790,17 @@ int ProximityEffect::CreateBlockOperator()
 
    {
       std::ofstream out("out/X.txt");
-      X->Print(out, 10);
+      if(printMatrix) X->Print(out, 10);
    }
 
    {
       std::ofstream out("out/B.txt");
-      B->Print(out, 10);
+      if(printMatrix) B->Print(out, 10);
    }
 
    {
       std::ofstream out("out/A_ptr.txt");
-      A_ptr->PrintMatlab(out);
+      if(printMatrix) A_ptr->PrintMatlab(out);
    }
 
    cout << A_ptr->Height() << " Operator Height()\n " 
@@ -844,13 +849,12 @@ int ProximityEffect::Solver()
    // Solve system Ax = b
    GMRESSolver solver;
    solver.SetOperator(*A_ptr);
-  // solver.SetPreconditioner(*block_prec);
-   solver.SetRelTol(1e-16);
+   solver.SetPreconditioner(*block_prec);
+   solver.SetRelTol(1e-12);
    //   solver.SetAbsTol(1e-8);
-   solver.SetMaxIter(5000);
+   solver.SetMaxIter(50000);
    solver.SetPrintLevel(1);
 
-   //x = 0.0;       // Initial guess
    solver.Mult(*B, *X);
 
    A->RecoverFEMSolution(*X, *rhs, *x);
@@ -1002,7 +1006,7 @@ int main(int argc, char *argv[])
 
    PE.CreateBlockOperator();
 
- //  PE.CreatePreconditionner();
+  PE.CreatePreconditionner();
 
    PE.Solver();
 

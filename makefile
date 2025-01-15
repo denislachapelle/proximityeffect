@@ -25,8 +25,5 @@ se2dblock: se2dblock.cpp mytools.cpp mytools.hpp
 
 
 proximity2dblockd: proximity2dblockd.cpp mytools.cpp mytools.hpp
-	g++ -g -o proximity2dblockd  -std=c++11 -I$(MFEM_DIR) proximity2dblockd.cpp mytools.cpp  -L/usr/lib/libgmsh.so -lgmsh -L$(MFEM_BUILD_DIR) -lmfem -lrt 
+	g++ -g -o proximity2dblockd  -std=c++11 -I$(MFEM_DIR) proximity2dblockd.cpp mytools.cpp  -I/usr/local/include -L/usr/lib/libgmsh.so -lgmsh -L$(MFEM_BUILD_DIR) -lmfem -lrt 
 
-
-testgmshcut: testgmshcut.cpp mytools.cpp mytools.hpp
-	g++ -g -o testgmshcut  -std=c++11 testgmshcut.cpp mytools.cpp  -L/usr/lib/libgmsh.so -lgmsh -lrt 

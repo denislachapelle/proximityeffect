@@ -1,0 +1,13 @@
+// This file specifies the wires used in proximity effect analysis.
+
+wire1shape round
+wire1dimensions 0.016
+wire1center -0.039725  0.0 // x, y
+wire1current 1.0 0.0 // current angle in degree
+
+wire2shape round
+wire2dimensions 0.016
+wire2center 0.039725 0.0  // x, y
+wire2current -1.0 0.0 // current angle in degree
+
+domainradius 0.2 //0.334075
