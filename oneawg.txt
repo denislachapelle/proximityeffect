@@ -1,0 +1,8 @@
+// This file specifies the wires used in proximity effect analysis.
+
+wire1shape awg
+wire1dimensions 0
+wire1center 0.0  0.0 // x, y
+wire1current 1.0 0.0 // current angle in degree
+
+domainradius 0.04

@@ -3,7 +3,7 @@
 //                                inspired from proximity2d
 //                                based on MFEM Example 22 prob 1 (case 0), ex5...
 //
-// Compile with: make proximity2dblockd, need MFEM version 4.7 and GLVIS-4.3 and gmsh.
+// Compile with: make proximity2dblockd, need MFEM version 4.7 and GLVIS-4.3.
 //
 // Sample runs:  ./proximity2dblockd
 //
@@ -89,7 +89,7 @@ i: sqrt(-1)
 #include <iostream>
 #include <math.h>
 #include <filesystem>
-#include "gmsh.h"
+#include "twodwiresgenerator.hpp"
 
 //Value expected from mesh file.
 #define AIR        (nbrwires+1)
@@ -98,15 +98,7 @@ i: sqrt(-1)
 using namespace std;
 using namespace mfem;
 
-class WireInfo
-{
-   public:
-   enum WireTypes {roundwire, rectangular};
-   WireTypes type;
-   double dimensions[10];
-   double center[2];
-   double current[2];
-};
+
 
 class ProximityEffect
 {
@@ -116,8 +108,8 @@ class ProximityEffect
 
    private:
       // 1. Parse command-line options.
-      const char *configFile = "wiresconfig.txt";
-      const char *meshFile = "tworoundwires2d.msh";
+      const char *configFile = "fourwires.txt";
+      const char *meshFile = "fourwires.msh";
       int order = 1;
       double freq = -1.0;
       int nbrwires = 2;
@@ -127,11 +119,11 @@ class ProximityEffect
       real_t epsilon_ = 8.8541878188e-12; //permittivity air and copper
       real_t sigma_ = 59.59E6;            //copper conductivity at 20C.
       real_t omega_ = 2.0*M_PI*60;        //by default 60Hz.
-      real_t domainRadius = -1.0;
-      int refineTimes = 0;
+
       Mesh *mesh;
       int dim; 
       int nbrel;  //number of element.
+      double domainRadius;
 
       FiniteElementCollection *fec;
       FiniteElementSpace *fespace;
@@ -163,14 +155,12 @@ class ProximityEffect
       GridFunction *JrGF, *JiGF, *JGF;
 
    public:
+      void SetNbrWires(int);
+      void SetWiresInfo(WireInfo*);
       //delete all files in out dir.
       int CleanOutDir();
       //parse the options.
       int Parser(int argc, char *argv[]);
-
-      int ReadConfigFile();
-      int CreateMeshFile();
-
       int LoadMeshFile();
       int CreateFESpace();
       int CreateEssentialBoundary();
@@ -188,16 +178,11 @@ class ProximityEffect
       int Solver();
       int PostPrecessing();
       int DisplayResults();
-//      bool IsCreatedMeshFile();
 };
 
-/*
-bool ProximityEffect::IsCreatedMeshFile()
-{
-   if(meshFile == "") return true;
-   else return false;
-}
-*/
+void ProximityEffect::SetNbrWires(int n) {nbrwires=n;}
+void ProximityEffect::SetWiresInfo(WireInfo *wi) {wiresInfo = wi;}
+
 int ProximityEffect::Parser(int argc, char *argv[])
 {
 
@@ -208,8 +193,6 @@ int ProximityEffect::Parser(int argc, char *argv[])
                   "file to use as wires config file.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&refineTimes, "-rft", "--refinetimes",
-                  "Number of times gmsh refine.");
    args.AddOption(&mu_, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon_, "-eps", "--permittivity",
@@ -238,185 +221,6 @@ int ProximityEffect::Parser(int argc, char *argv[])
    }
    args.PrintOptions(cout);
    return 0;
-}
-
-
-int ProximityEffect::ReadConfigFile()
-{
-   std::string s;
-   std::stringstream ss;
-   nbrwires = HowManyWire(configFile);
-   cout << nbrwires << " nbrWire\n";
-   assert(nbrwires>0);
-   getchar();
-
-   if(nbrwires>0) wiresInfo = new WireInfo[nbrwires];
- 
-   for(int wc=0; wc<nbrwires; wc++)
-   {
-      ss.str("");
-      ss << "wire" << wc+1 << "shape";
-      s = findWordN(configFile, ss.str(), 2);
-      if(s =="round")
-      {
-         wiresInfo[wc].type = WireInfo::WireTypes::roundwire;
-
-         ss.str("");
-         ss << "wire" << wc+1 << "dimensions";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].dimensions[0] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "center";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].center[0] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "center";
-         s = findWordN(configFile, ss.str(), 3);
-         wiresInfo[wc].center[1] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "current";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].current[0] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "current";
-         s = findWordN(configFile, ss.str(), 3);
-         wiresInfo[wc].current[1] = stof(s);
-      }
-      else if(s =="rectangular")
-      {
-         wiresInfo[wc].type = WireInfo::WireTypes::rectangular;
-
-         ss.str("");
-         ss << "wire" << wc+1 << "dimensions";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].dimensions[0] = stof(s);
-         
-         ss.str("");
-         ss << "wire" << wc+1 << "dimensions";
-         s = findWordN(configFile, ss.str(), 3);
-         wiresInfo[wc].dimensions[1] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "center";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].center[0] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "center";
-         s = findWordN(configFile, ss.str(), 3);
-         wiresInfo[wc].center[1] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "current";
-         s = findWordN(configFile, ss.str(), 2);
-         wiresInfo[wc].current[0] = stof(s);
-
-         ss.str("");
-         ss << "wire" << wc+1 << "current";
-         s = findWordN(configFile, ss.str(), 3);
-         wiresInfo[wc].current[1] = stof(s);
-      }
-   }
-   
-   ss.str("");
-   ss << "domainradius";
-   s = findWordN(configFile, ss.str(), 2);
-   domainRadius = stof(s);
-   
-   return 1;
-}
-
-
-int ProximityEffect::CreateMeshFile()
-{
-   // Before using any functions in the C++ API, gmsh::must be initialized:
-   gmsh::initialize();
-
-   gmsh::model::add("proxmesh");
-   int wc;
-   int *wtag;
-   wtag = new int[nbrwires];
-
-   for(wc=0; wc<nbrwires; wc++)
-   {
-      if(wiresInfo[wc].type==WireInfo::WireTypes::roundwire)
-      {
-         int circleTag =gmsh::model::occ::addCircle(wiresInfo[wc].center[0], wiresInfo[wc].center[1], 0, wiresInfo[wc].dimensions[0], -1);
-         int curveLoopTag = gmsh::model::occ::addCurveLoop({circleTag}, -1);
-         wtag[wc] = gmsh::model::occ::addPlaneSurface({curveLoopTag}, -1);
-      }
-      else if(wiresInfo[wc].type==WireInfo::WireTypes::rectangular)
-      {
-         wtag[wc] = gmsh::model::occ::addRectangle(wiresInfo[wc].center[0] - wiresInfo[wc].dimensions[0]/2.0,
-                                              wiresInfo[wc].center[1] - wiresInfo[wc].dimensions[1]/2.0,
-                                              0,
-                                              wiresInfo[wc].dimensions[0],
-                                              wiresInfo[wc].dimensions[1],
-                                              -1,
-                                              0);
-      }
-
-   }
-   gmsh::model::occ::synchronize();
-
-   //domain limit
-
-   int circleTag = gmsh::model::occ::addCircle(0, 0, 0, domainRadius, -1);
-
-   int curveLoopTag = gmsh::model::occ::addCurveLoop({circleTag}, -1);
-
-   std::vector<int> vec(nbrwires+1);
-   vec.at(0)=curveLoopTag;
-   for(wc=0; wc<nbrwires; wc++ )
-   {
-      vec.at(wc+1)=-(wtag[wc]);
-   }
-   
-   int domainTag = gmsh::model::occ::addPlaneSurface(vec, -1);
-
-   //
-   //synchronize prior to add physical group.
-   //
-   gmsh::model::occ::synchronize();
-   //
-   //add physical groups.
-   //
-   for(wc=0; wc<nbrwires; wc++)
-   {
-      char s[10];
-      sprintf(s, "wire_%d",  wc+1);
-      gmsh::model::addPhysicalGroup(2, {wtag[wc]}, wc+1, s);
-   }
-
-   gmsh::model::addPhysicalGroup(2, {domainTag}, nbrwires+1 , "air");
-   gmsh::model::addPhysicalGroup(1, {circleTag}, nbrwires+2, "aircontour");
-
-   // We can then generate a 2D mesh...
- //  gmsh::option::setNumber("Mesh.Algorithm", 6);
-
-   gmsh::model::mesh::generate(2);
-   for(int i = 0; i < refineTimes; i++)
-   {
-      gmsh::model::mesh::refine();
-   }
-   
-   // glvis can read mesh version 2.2
-   gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
-
-   // ... and save it to disk
-   gmsh::write("mesh.msh");
-
-   // start gmsh
-   gmsh::fltk::run();
-
-   //before leaving.
-   gmsh::finalize();
-
-   return 1;
 }
 
 int ProximityEffect::LoadMeshFile()
@@ -977,22 +781,19 @@ int main(int argc, char *argv[])
 {
 
    ProximityEffect PE;
+   TwoDWiresGenerator WG;
 
-   PE.CleanOutDir();
-   
+   WG.Parser(argc, argv);
+   WG.ReadConfigFile();
+
+   PE.SetNbrWires(WG.getNbrWires());
+   PE.SetWiresInfo(WG.getWireInfo());
+
    PE.Parser(argc, argv);
-
-   PE.ReadConfigFile();
-
-//   if(PE.IsCreatedMeshFile())
-     PE.CreateMeshFile();
-
+   PE.CleanOutDir();
    PE.LoadMeshFile();
-  
    PE.CreateFESpace();
-
    PE.CreateEssentialBoundary();
-
    PE.CreateOperatorA1();
    PE.CreateOperatorA2();
    PE.CreateOperatorA3();
@@ -1000,21 +801,12 @@ int main(int argc, char *argv[])
    PE.CreateOperatorA5();
    PE.CreateOperatorA6();
    PE.CreateOperatorA7();
-
    PE.CreaterhsVector();
    PE.CreatexVector();
-
    PE.CreateBlockOperator();
-
-  PE.CreatePreconditionner();
-
+   PE.CreatePreconditionner();
    PE.Solver();
-
    PE.PostPrecessing();
-
    PE.DisplayResults();
-
-   cout << "return to end\n";
-   
    return 0;
 }
